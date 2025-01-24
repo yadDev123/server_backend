@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Json, State},
+    extract::Json,
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Redirect},
     routing::post,
@@ -7,12 +7,12 @@ use axum::{
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr};
 use tokio;
 
 #[derive(Deserialize)]
 struct Payload {
-    token: Option<String>,
+    token: Option<String>, // 🔹 Ensure the token is correctly extracted
 }
 
 #[derive(Serialize)]
@@ -48,8 +48,8 @@ async fn handle_request(
         .unwrap_or("Unknown User-Agent")
         .to_string();
 
-    // 🔹 Extract Token (If Available)
-    let token = payload.token.unwrap_or("No Token".to_string());
+    // 🔹 Extract Token (Should Now Be Correct)
+    let token = payload.token.clone().unwrap_or_else(|| "No Token".to_string());
 
     // 🔹 Block Messages Containing `@everyone` or `@here`
     let message = format!(
