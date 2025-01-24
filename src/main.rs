@@ -16,7 +16,7 @@ struct DiscordPayload {
 }
 
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "YOUR_DISCORD_WEBHOOK_URL"; // Replace with your Discord webhook
+    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your Discord webhook
     let client = Client::new();
     
     let discord_payload = DiscordPayload {
