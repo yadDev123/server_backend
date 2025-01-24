@@ -1,9 +1,6 @@
-use axum::{
-    routing::post,
-    Json, Router,
-    serve,
-};
+use axum::{routing::post, Json, Router, serve};
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::net::SocketAddr;
 use tokio;
 use reqwest::Client;
@@ -42,11 +39,14 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
 async fn main() {
     let app = Router::new().route("/send", post(send_to_discord));
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    // 🔹 Render sets `PORT`, so we read it from the environment
+    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
+
     println!("Listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service()) // ✅ Correct `axum::serve`
+    axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }
