@@ -1,4 +1,4 @@
-use axum::{routing::post, Json, Router, serve};
+use axum::{routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::SocketAddr;
@@ -17,8 +17,14 @@ struct DiscordPayload {
 
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your Discord webhook
+
+    // 🔹 Check for forbidden mentions (@everyone or @here)
+    if payload.message.contains("@everyone") || payload.message.contains("@here") {
+        eprintln!("Blocked message containing @everyone or @here");
+        return "Blocked message: contains @everyone or @here";
+    }
+
     let client = Client::new();
-    
     let discord_payload = DiscordPayload {
         content: payload.message,
     };
