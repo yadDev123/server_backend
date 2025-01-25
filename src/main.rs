@@ -22,7 +22,7 @@ async fn test_handler() -> &'static str {
 
 // ✅ Handles sending messages to Discord
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your actual webhook URL
+    let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t"; // Replace with your actual webhook URL
 
     // 🔹 Block messages containing @everyone or @here to prevent spam
     if payload.message.contains("@everyone") || payload.message.contains("@here") {
