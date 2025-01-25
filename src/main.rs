@@ -1,4 +1,4 @@
-use axum::{routing::{get, post}, Json, Router};
+use axum::{routing::{get, post}, Json, Router, Server};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::SocketAddr;
@@ -15,9 +15,9 @@ struct DiscordPayload {
     content: String,
 }
 
-// ✅ Health check route for uptime monitoring (UptimeRobot)
+// ✅ Health check route for uptime monitoring (UptimeRobot, cron-job.org)
 async fn health_check() -> &'static str {
-    "Server is running"
+    "✅ Server is running"
 }
 
 // ✅ Handles sending messages to Discord
@@ -58,16 +58,16 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .route("/health", get(health_check)) // ✅ Use this for UptimeRobot
-        .route("/send", post(send_to_discord)); // 🔹 Keep this for actual requests
+        .route("/health", get(health_check)) // ✅ Use this for UptimeRobot pings
+        .route("/send", post(send_to_discord)); // 🔹 This is your main function for Discord messages
     
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
 
     println!("🚀 Server running at http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind port");
-    axum::serve(listener, app.into_make_service())
+    Server::bind(&addr)
+        .serve(app.into_make_service())
         .await
-        .expect("Server crashed");
+        .expect("❌ Server crashed");
 }
