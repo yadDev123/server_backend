@@ -15,15 +15,16 @@ struct DiscordPayload {
     content: String,
 }
 
-// ✅ Add a simple GET route for uptime monitoring
+// ✅ Health check route for uptime monitoring (UptimeRobot)
 async fn health_check() -> &'static str {
     "Server is running"
 }
 
+// ✅ Handles sending messages to Discord
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your Discord webhook
+    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your actual webhook URL
 
-    // 🔹 Block messages with @everyone or @here
+    // 🔹 Block messages containing @everyone or @here to prevent spam
     if payload.message.contains("@everyone") || payload.message.contains("@here") {
         eprintln!("Blocked message containing @everyone or @here");
         return "Blocked message: contains @everyone or @here";
@@ -34,31 +35,39 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
         content: payload.message,
     };
 
-    if let Err(e) = client.post(webhook_url)
+    // 🔹 Attempt to send the message to Discord
+    match client.post(webhook_url)
         .json(&discord_payload)
         .send()
         .await
     {
-        eprintln!("Failed to send message: {}", e);
-        return "Error sending message to Discord";
+        Ok(response) if response.status().is_success() => {
+            "Message sent to Discord"
+        }
+        Ok(response) => {
+            eprintln!("Discord API error: {}", response.status());
+            "Error sending message to Discord"
+        }
+        Err(e) => {
+            eprintln!("Request error: {}", e);
+            "Error sending request to Discord"
+        }
     }
-
-    "Message sent to Discord"
 }
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .route("/", get(health_check)) // ✅ This allows UptimeRobot to send GET requests
-        .route("/send", post(send_to_discord)); // 🔹 Keep this for your actual POST requests
+        .route("/health", get(health_check)) // ✅ Use this for UptimeRobot
+        .route("/send", post(send_to_discord)); // 🔹 Keep this for actual requests
     
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
+    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
 
-    println!("Listening on {}", addr);
+    println!("🚀 Server running at http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind port");
     axum::serve(listener, app.into_make_service())
         .await
-        .unwrap();
+        .expect("Server crashed");
 }
