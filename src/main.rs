@@ -1,4 +1,4 @@
-use axum::{routing::post, Json, Router};
+use axum::{routing::{get, post}, Json, Router};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::SocketAddr;
@@ -15,10 +15,16 @@ struct DiscordPayload {
     content: String,
 }
 
-async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your Discord webhook
+// ✅ Route for /test (Equivalent to Express.js `app.get('/test', ...)`)
+async fn test_handler() -> &'static str {
+    "Hello, World!"
+}
 
-    // 🔹 Check for forbidden mentions (@everyone or @here)
+// ✅ Handles sending messages to Discord
+async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
+    let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your actual webhook URL
+
+    // 🔹 Block messages containing @everyone or @here to prevent spam
     if payload.message.contains("@everyone") || payload.message.contains("@here") {
         eprintln!("Blocked message containing @everyone or @here");
         return "Blocked message: contains @everyone or @here";
@@ -28,31 +34,40 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     let discord_payload = DiscordPayload {
         content: payload.message,
     };
-    
 
-    if let Err(e) = client.post(webhook_url)
+    // 🔹 Attempt to send the message to Discord
+    match client.post(webhook_url)
         .json(&discord_payload)
         .send()
         .await
     {
-        eprintln!("Failed to send message: {}", e);
-        return "Error sending message to Discord";
+        Ok(response) if response.status().is_success() => {
+            "Message sent to Discord"
+        }
+        Ok(response) => {
+            eprintln!("Discord API error: {}", response.status());
+            "Error sending message to Discord"
+        }
+        Err(e) => {
+            eprintln!("Request error: {}", e);
+            "Error sending request to Discord"
+        }
     }
-
-    "Message sent to Discord"
 }
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/send", post(send_to_discord));    
-    // 🔹 Render sets `PORT`, so we read it from the environment
+    let app = Router::new()
+        .route("/test", get(test_handler)) // ✅ Equivalent to Express `/test` route
+        .route("/send", post(send_to_discord)); // 🔹 Route for sending messages
+    
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
+    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
 
-    println!("Listening on {}", addr);
+    println!("🚀 Server running at http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("❌ Failed to bind port");
     axum::serve(listener, app.into_make_service())
         .await
-        .unwrap();
+        .expect("❌ Server crashed");
 }
