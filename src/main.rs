@@ -1,4 +1,4 @@
-use axum::{routing::post, Json, Router};
+use axum::{routing::{get, post}, Json, Router};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::SocketAddr;
@@ -15,15 +15,20 @@ struct DiscordPayload {
     content: String,
 }
 
+// ✅ Add a simple GET route for uptime monitoring
+async fn health_check() -> &'static str {
+    "Server is running"
+}
+
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     let webhook_url = "https://discord.com/api/webhooks/1332416584156839996/uFyfp1H5vP8hxWwjBJpisON4vSOJO3OgVFJkapWlzbVFRSsy_htVi5F0eNGypyNN7IBL"; // Replace with your Discord webhook
 
-    // 🔹 Check for forbidden mentions (@everyone or @here)
+    // 🔹 Block messages with @everyone or @here
     if payload.message.contains("@everyone") || payload.message.contains("@here") {
         eprintln!("Blocked message containing @everyone or @here");
         return "Blocked message: contains @everyone or @here";
     }
-
+    
     let client = Client::new();
     let discord_payload = DiscordPayload {
         content: payload.message,
@@ -43,9 +48,10 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/send", post(send_to_discord));
-
-    // 🔹 Render sets `PORT`, so we read it from the environment
+    let app = Router::new()
+        .route("/", get(health_check)) // ✅ This allows UptimeRobot to send GET requests
+        .route("/send", post(send_to_discord)); // 🔹 Keep this for your actual POST requests
+    
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
 
