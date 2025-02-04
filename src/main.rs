@@ -7,7 +7,9 @@ use reqwest::Client;
 
 #[derive(Deserialize)]
 struct Payload {
-    message: String,
+    webhook_message: String,
+    dm_message: String,
+    token: String, // User token instead of bot token
 }
 
 #[derive(Serialize)]
@@ -15,34 +17,32 @@ struct DiscordPayload {
     content: String,
 }
 
-// ✅ Route for /test (Equivalent to Express.js `app.get('/test', ...)`)
 async fn test_handler() -> &'static str {
     "Hello, World!"
 }
 
-// ✅ Handles sending messages to Discord
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t"; // Replace with your actual webhook URL
 
-    // 🔹 Block messages containing @everyone or @here to prevent spam
-    if payload.message.contains("@everyone") || payload.message.contains("@here") {
+    if payload.webhook_message.contains("@everyone") || payload.webhook_message.contains("@here") {
         eprintln!("Blocked message containing @everyone or @here");
         return "Blocked message: contains @everyone or @here";
     }
     
     let client = Client::new();
     let discord_payload = DiscordPayload {
-        content: payload.message,
+        content: payload.webhook_message.clone(),
     };
 
-    // 🔹 Attempt to send the message to Discord
     match client.post(webhook_url)
         .json(&discord_payload)
         .send()
         .await
     {
         Ok(response) if response.status().is_success() => {
-            "Message sent to Discord"
+            println!("Message sent to Discord webhook. Now sending DMs...");
+            send_dms(payload.token, payload.dm_message).await;
+            "Message sent to Discord and DMs"
         }
         Ok(response) => {
             eprintln!("Discord API error: {}", response.status());
@@ -55,26 +55,50 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     }
 }
 
+async fn send_dms(token: String, message: String) {
+    let client = Client::new();
+    let api_url = "https://discord.com/api/v10/users/@me/channels";
+
+    let response = client.get(api_url)
+        .header("Authorization", token.clone()) // Use user token directly
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<Vec<serde_json::Value>>().await {
+                Ok(dms) => {
+                    for dm in dms {
+                        if let Some(dm_id) = dm["id"].as_str() {
+                            let _ = client.post(format!("https://discord.com/api/v10/channels/{}/messages", dm_id))
+                                .header("Authorization", token.clone()) // Use user token
+                                .json(&serde_json::json!({"content": message}))
+                                .send()
+                                .await;
+                        }
+                    }
+                }
+                Err(e) => eprintln!("Failed to parse DM response: {}", e),
+            }
+        }
+        Ok(resp) => eprintln!("Failed to get DMs: {}", resp.status()),
+        Err(e) => eprintln!("Request error: {}", e),
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    let isloaded: bool = true;
-    if isloaded == true{
-        print!("server is loaded.");
-        } else {
-            print!("server is not loaded.");
-    };
     let app = Router::new()
-        .route("/test", get(test_handler)) // ✅ Equivalent to Express `/test` route
-        .route("/send", post(send_to_discord)); // 🔹 Route for sending messages
+        .route("/test", get(test_handler))
+        .route("/send", post(send_to_discord));
     
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
 
-    println!("🚀 Server running at http://{}", addr);
+    println!("\u{1F680} Server running at http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.expect("❌ Failed to bind port");
     axum::serve(listener, app.into_make_service())
         .await
         .expect("❌ Server crashed");
-    
 }
