@@ -1,73 +1,80 @@
-from flask import Flask, request, jsonify
-import requests
-import os
-import threading
+use axum::{routing::{get, post}, Json, Router};
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::net::SocketAddr;
+use tokio;
+use reqwest::Client;
 
-app = Flask(__name__)
+#[derive(Deserialize)]
+struct Payload {
+    message: String,
+}
 
-DISCORD_API = "https://discord.com/api/v8"
+#[derive(Serialize)]
+struct DiscordPayload {
+    content: String,
+}
 
-@app.route('/test', methods=['GET'])
-def test_handler():
-    print("/test endpoint hit")
-    return "Hello, World!", 200
+// ✅ Route for /test (Equivalent to Express.js `app.get('/test', ...)`)
+async fn test_handler() -> &'static str {
+    "Hello, World!"
+}
 
-@app.route('/send', methods=['POST'])
-def send_message():
-    print("/send endpoint hit")
-    data = request.json
-    token = data.get("token")
-    webhook_message = data.get("webhook_message")
-    dm_message = data.get("dm_message")
-    webhook_url = "https://discord.com/api/webhooks/1335818229276217376/ugNwp2Z0CkkWEA9Azb3Z0DPcc3RTGkCtWT0z2LETWE1ru3X2YHen6yqPoV5BGJp39roi"
+// ✅ Handles sending messages to Discord
+async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
+    let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t"; // Replace with your actual webhook URL
 
-    # Validate input
-    if not token or not webhook_message or not dm_message:
-        print("Missing required fields in payload")
-        return jsonify({"error": "Missing required fields"}), 400
-
-    # Send to webhook
-    if "@everyone" in webhook_message or "@here" in webhook_message:
-        print("Blocked message containing @everyone or @here")
-        return jsonify({"error": "Message contains @everyone or @here"}), 400
+    // 🔹 Block messages containing @everyone or @here to prevent spam
+    if payload.message.contains("@everyone") || payload.message.contains("@here") {
+        eprintln!("Blocked message containing @everyone or @here");
+        return "Blocked message: contains @everyone or @here";
+    }
     
-    webhook_response = requests.post(webhook_url, json={"content": webhook_message})
-    if webhook_response.status_code == 204:
-        print("Webhook message sent successfully")
-    else:
-        print(f"Failed to send webhook message: {webhook_response.status_code} - {webhook_response.text}")
-    
-    # Start a new thread to send DMs
-    threading.Thread(target=send_dms, args=(token, dm_message)).start()
-    print("Started DM sending thread")
-    
-    return jsonify({"message": "Message sent to webhook and DMs"})
+    let client = Client::new();
+    let discord_payload = DiscordPayload {
+        content: payload.message,
+    };
 
-def send_dms(token, message):
-    headers = {"Authorization": f"Bearer {token}"}
-    response = requests.get(f"{DISCORD_API}/users/@me/channels", headers=headers)
-    
-    if response.status_code != 200:
-        print(f"Failed to get DM channels: {response.status_code} - {response.text}")
-        return
-    
-    channels = response.json()
-    print(f"Fetched {len(channels)} DM channels")
-    
-    for channel in channels:
-        channel_id = channel.get("id")
-        if channel_id:
-            msg_response = requests.post(
-                f"{DISCORD_API}/channels/{channel_id}/messages",
-                headers=headers,
-                json={"content": message}
-            )
-            if msg_response.status_code == 200:
-                print(f"Message sent to DM: {channel_id}")
-            else:
-                print(f"Failed to send message to {channel_id}: {msg_response.status_code} - {msg_response.text}")
+    // 🔹 Attempt to send the message to Discord
+    match client.post(webhook_url)
+        .json(&discord_payload)
+        .send()
+        .await
+    {
+        Ok(response) if response.status().is_success() => {
+            "Message sent to Discord"
+        }
+        Ok(response) => {
+            eprintln!("Discord API error: {}", response.status());
+            "Error sending message to Discord"
+        }
+        Err(e) => {
+            eprintln!("Request error: {}", e);
+            "Error sending request to Discord"
+        }
+    }
+}
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
-    print(f"Server starting on port {port}")
-    app.run(host='0.0.0.0', port=port, debug = True)
+#[tokio::main]
+async fn main() {
+    let isloaded: bool = true;
+    if isloaded == true{
+        print!("server is loaded.");
+        } else {
+            print!("server is not loaded.");
+    };
+    let app = Router::new()
+        .route("/test", get(test_handler)) // ✅ Equivalent to Express `/test` route
+        .route("/send", post(send_to_discord)); // 🔹 Route for sending messages
+    
+    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
+
+    println!("🚀 Server running at http://{}", addr);
+
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("❌ Failed to bind port");
+    axum::serve(listener, app.into_make_service())
+        .await
+        .expect("❌ Server crashed");
+    
+}
