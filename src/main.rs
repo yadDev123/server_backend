@@ -60,28 +60,46 @@ async fn send_dms(token: String, message: String) {
     let api_url = "https://discord.com/api/v10/users/@me/channels";
 
     let response = client.get(api_url)
-        .header("Authorization", token.clone()) // Use user token directly
+        .header("Authorization", format!("Bearer {}", token)) // Ensure correct Authorization format
         .send()
         .await;
 
     match response {
         Ok(resp) if resp.status().is_success() => {
-            match resp.json::<Vec<serde_json::Value>>().await {
+            let body = resp.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
+            println!("Received DM channels: {}", body);
+            
+            match serde_json::from_str::<Vec<serde_json::Value>>(&body) {
                 Ok(dms) => {
                     for dm in dms {
                         if let Some(dm_id) = dm["id"].as_str() {
-                            let _ = client.post(format!("https://discord.com/api/v10/channels/{}/messages", dm_id))
-                                .header("Authorization", token.clone()) // Use user token
+                            let msg_response = client.post(format!("https://discord.com/api/v10/channels/{}/messages", dm_id))
+                                .header("Authorization", format!("Bearer {}", token)) // Use correct Authorization format
                                 .json(&serde_json::json!({"content": message}))
                                 .send()
                                 .await;
+
+                            match msg_response {
+                                Ok(msg_resp) if msg_resp.status().is_success() => {
+                                    println!("Message sent to DM: {}", dm_id);
+                                }
+                                Ok(msg_resp) => {
+                                    eprintln!("Failed to send message to {}: {}", dm_id, msg_resp.status());
+                                }
+                                Err(e) => {
+                                    eprintln!("Request error while sending DM to {}: {}", dm_id, e);
+                                }
+                            }
                         }
                     }
                 }
                 Err(e) => eprintln!("Failed to parse DM response: {}", e),
             }
         }
-        Ok(resp) => eprintln!("Failed to get DMs: {}", resp.status()),
+        Ok(resp) => {
+            let body = resp.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
+            eprintln!("Failed to get DMs: {} - Response: {}", resp.status(), body);
+        }
         Err(e) => eprintln!("Request error: {}", e),
     }
 }
