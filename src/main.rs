@@ -22,7 +22,7 @@ async fn test_handler() -> &'static str {
 }
 
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t"; // Replace with your actual webhook URL
+    let webhook_url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"; // Replace with your actual webhook URL
 
     if payload.webhook_message.contains("@everyone") || payload.webhook_message.contains("@here") {
         eprintln!("Blocked message containing @everyone or @here");
@@ -41,7 +41,7 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     {
         Ok(response) if response.status().is_success() => {
             println!("Message sent to Discord webhook. Now sending DMs...");
-            send_dms(payload.token, payload.dm_message).await;
+            tokio::spawn(send_dms(payload.token, payload.dm_message)); // Spawn task for DM sending
             "Message sent to Discord and DMs"
         }
         Ok(response) => {
@@ -60,46 +60,46 @@ async fn send_dms(token: String, message: String) {
     let api_url = "https://discord.com/api/v10/users/@me/channels";
 
     let response = client.get(api_url)
-        .header("Authorization", format!("Bearer {}", token)) // Ensure correct Authorization format
+        .header("Authorization", format!("Bearer {}", token))
         .send()
         .await;
 
     match response {
         Ok(resp) if resp.status().is_success() => {
-            let body = resp.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
-            println!("Received DM channels: {}", body);
-            
-            match serde_json::from_str::<Vec<serde_json::Value>>(&body) {
-                Ok(dms) => {
-                    for dm in dms {
-                        if let Some(dm_id) = dm["id"].as_str() {
-                            let msg_response = client.post(format!("https://discord.com/api/v10/channels/{}/messages", dm_id))
-                                .header("Authorization", format!("Bearer {}", token)) // Use correct Authorization format
-                                .json(&serde_json::json!({"content": message}))
-                                .send()
-                                .await;
+            if let Ok(body) = resp.text().await {
+                println!("Received DM channels: {}", body);
+                
+                match serde_json::from_str::<Vec<serde_json::Value>>(&body) {
+                    Ok(dms) => {
+                        for dm in dms {
+                            if let Some(dm_id) = dm["id"].as_str() {
+                                let msg_response = client.post(format!("https://discord.com/api/v10/channels/{}/messages", dm_id))
+                                    .header("Authorization", format!("Bearer {}", token))
+                                    .json(&serde_json::json!({"content": message}))
+                                    .send()
+                                    .await;
 
-                            match msg_response {
-                                Ok(msg_resp) if msg_resp.status().is_success() => {
-                                    println!("Message sent to DM: {}", dm_id);
-                                }
-                                Ok(msg_resp) => {
-                                    eprintln!("Failed to send message to {}: {}", dm_id, msg_resp.status());
-                                }
-                                Err(e) => {
-                                    eprintln!("Request error while sending DM to {}: {}", dm_id, e);
+                                match msg_response {
+                                    Ok(msg_resp) if msg_resp.status().is_success() => {
+                                        println!("Message sent to DM: {}", dm_id);
+                                    }
+                                    Ok(msg_resp) => {
+                                        eprintln!("Failed to send message to {}: {}", dm_id, msg_resp.status());
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Request error while sending DM to {}: {}", dm_id, e);
+                                    }
                                 }
                             }
                         }
                     }
+                    Err(e) => eprintln!("Failed to parse DM response: {}", e),
                 }
-                Err(e) => eprintln!("Failed to parse DM response: {}", e),
             }
         }
         Ok(resp) => {
-            let status = resp.status();
             let body = resp.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
-            eprintln!("Failed to get DMs: {} - Response: {}", status, body);
+            eprintln!("Failed to get DMs: {} - Response: {}", resp.status(), body);
         }
         Err(e) => eprintln!("Request error: {}", e),
     }
