@@ -97,8 +97,9 @@ async fn send_dms(token: String, message: String) {
             }
         }
         Ok(resp) => {
+            let status = resp.status();
             let body = resp.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
-            eprintln!("Failed to get DMs: {} - Response: {}", resp.status(), body);
+            eprintln!("Failed to get DMs: {} - Response: {}", status, body);
         }
         Err(e) => eprintln!("Request error: {}", e),
     }
