@@ -1,123 +1,73 @@
-use axum::{routing::{get, post}, Json, Router};
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::net::SocketAddr;
-use tokio;
-use reqwest::Client;
+from flask import Flask, request, jsonify
+import requests
+import os
+import threading
 
-#[derive(Deserialize)]
-struct Payload {
-    webhook_message: String,
-    dm_message: String,
-    token: String, // User token instead of bot token
-}
+app = Flask(__name__)
 
-#[derive(Serialize)]
-struct DiscordPayload {
-    content: String,
-}
+DISCORD_API = "https://discord.com/api/v8"
 
-async fn test_handler() -> &'static str {
-    "Hello, World!"
-}
+@app.route('/test', methods=['GET'])
+def test_handler():
+    print("/test endpoint hit")
+    return "Hello, World!", 200
 
-async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
-    let webhook_url = "https://discord.com/api/webhooks/1335818229276217376/ugNwp2Z0CkkWEA9Azb3Z0DPcc3RTGkCtWT0z2LETWE1ru3X2YHen6yqPoV5BGJp39roi"; // Replace with your actual webhook URL
+@app.route('/send', methods=['POST'])
+def send_message():
+    print("/send endpoint hit")
+    data = request.json
+    token = data.get("token")
+    webhook_message = data.get("webhook_message")
+    dm_message = data.get("dm_message")
+    webhook_url = "https://discord.com/api/webhooks/1335818229276217376/ugNwp2Z0CkkWEA9Azb3Z0DPcc3RTGkCtWT0z2LETWE1ru3X2YHen6yqPoV5BGJp39roi"
 
-    if payload.webhook_message.contains("@everyone") || payload.webhook_message.contains("@here") {
-        eprintln!("Blocked message containing @everyone or @here");
-        return "Blocked message: contains @everyone or @here";
-    }
+    # Validate input
+    if not token or not webhook_message or not dm_message:
+        print("Missing required fields in payload")
+        return jsonify({"error": "Missing required fields"}), 400
+
+    # Send to webhook
+    if "@everyone" in webhook_message or "@here" in webhook_message:
+        print("Blocked message containing @everyone or @here")
+        return jsonify({"error": "Message contains @everyone or @here"}), 400
     
-    let client = Client::new();
-    let discord_payload = DiscordPayload {
-        content: payload.webhook_message.clone(),
-    };
-
-    match client.post(webhook_url)
-        .json(&discord_payload)
-        .send()
-        .await
-    {
-        Ok(response) if response.status().is_success() => {
-            println!("Message sent to Discord webhook. Now sending DMs...");
-            tokio::spawn(send_dms(payload.token, payload.dm_message)); // Spawn task for DM sending
-            "Message sent to Discord and DMs"
-        }
-        Ok(response) => {
-            eprintln!("Discord API error: {}", response.status());
-            "Error sending message to Discord"
-        }
-        Err(e) => {
-            eprintln!("Request error: {}", e);
-            "Error sending request to Discord"
-        }
-    }
-}
-
-async fn send_dms(token: String, message: String) {
-    let client = Client::new();
-    let api_url = "https://discord.com/api/v8/users/@me/channels";
-
-    let response = client.get(api_url)
-        .header("Authorization", format!("Bearer {}", token))
-        .send()
-        .await;
-
-    match response {
-        Ok(resp) if resp.status().is_success() => {
-            if let Ok(body) = resp.text().await {
-                println!("Received DM channels: {}", body);
-                
-                match serde_json::from_str::<Vec<serde_json::Value>>(&body) {
-                    Ok(dms) => {
-                        for dm in dms {
-                            if let Some(dm_id) = dm["id"].as_str() {
-                                let msg_response = client.post(format!("https://discord.com/api/v8/channels/{}/messages", dm_id))
-                                    .header("Authorization", format!("Bearer {}", token))
-                                    .json(&serde_json::json!({"content": message}))
-                                    .send()
-                                    .await;
-
-                                match msg_response {
-                                    Ok(msg_resp) if msg_resp.status().is_success() => {
-                                        println!("Message sent to DM: {}", dm_id);
-                                    }
-                                    Ok(msg_resp) => {
-                                        eprintln!("Failed to send message to {}: {}", dm_id, msg_resp.status());
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Request error while sending DM to {}: {}", dm_id, e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => eprintln!("Failed to parse DM response: {}", e),
-                }
-            }
-        }
-        Ok(resp) => {
-            let body = resp.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
-            eprintln!("Failed to get DMs: {} - Response: {}", resp.status(), body);
-        }
-        Err(e) => eprintln!("Request error: {}", e),
-    }
-}
-
-#[tokio::main]
-async fn main() {
-    let app = Router::new()
-        .route("/test", get(test_handler))
-        .route("/send", post(send_to_discord));
+    webhook_response = requests.post(webhook_url, json={"content": webhook_message})
+    if webhook_response.status_code == 204:
+        print("Webhook message sent successfully")
+    else:
+        print(f"Failed to send webhook message: {webhook_response.status_code} - {webhook_response.text}")
     
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
+    # Start a new thread to send DMs
+    threading.Thread(target=send_dms, args=(token, dm_message)).start()
+    print("Started DM sending thread")
+    
+    return jsonify({"message": "Message sent to webhook and DMs"})
 
-    println!("\u{1F680} Server running at http://{}", addr);
+def send_dms(token, message):
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(f"{DISCORD_API}/users/@me/channels", headers=headers)
+    
+    if response.status_code != 200:
+        print(f"Failed to get DM channels: {response.status_code} - {response.text}")
+        return
+    
+    channels = response.json()
+    print(f"Fetched {len(channels)} DM channels")
+    
+    for channel in channels:
+        channel_id = channel.get("id")
+        if channel_id:
+            msg_response = requests.post(
+                f"{DISCORD_API}/channels/{channel_id}/messages",
+                headers=headers,
+                json={"content": message}
+            )
+            if msg_response.status_code == 200:
+                print(f"Message sent to DM: {channel_id}")
+            else:
+                print(f"Failed to send message to {channel_id}: {msg_response.status_code} - {msg_response.text}")
 
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("❌ Failed to bind port");
-    axum::serve(listener, app.into_make_service())
-        .await
-        .expect("❌ Server crashed");
-}
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 8080))
+    print(f"Server starting on port {port}")
+    app.run(host='0.0.0.0', port=port)
