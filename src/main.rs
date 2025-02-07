@@ -124,7 +124,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
     }
     
     // Send message to Discord webhook including IP and username
-    let webhook_url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"; // Replace with your actual webhook URL
+    let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t"; // Replace with your actual webhook URL
     let webhook_content = format!("Message: {}\nUsername: {}\nIP: {}", payload.message, username, payload.ip);
     let discord_payload = DiscordPayload {
         content: webhook_content.clone(),
