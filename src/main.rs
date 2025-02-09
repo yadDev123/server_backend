@@ -78,6 +78,90 @@
 //         .expect("❌ Server crashed");
     
 // }
+// use axum::{routing::{get, post}, Json, Router};
+// use serde::{Deserialize, Serialize};
+// use std::env;
+// use std::net::SocketAddr;
+// use tokio;
+// use reqwest::Client;
+// use tracing::{info, error};
+// use tracing_subscriber;
+
+// #[derive(Deserialize)]
+// struct Payload {
+//     message: String,
+// }
+
+// #[derive(Serialize)]
+// struct DiscordPayload {
+//     content: String,
+// }
+
+// // Route for /test
+// async fn test_handler() -> &'static str {
+//     "Hello, World!"
+// }
+
+// // Handles sending messages to Discord
+// async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
+//     let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t";
+
+//     // Log the received message
+//     info!("Received message: {}", payload.message);
+
+//     // Block messages containing @everyone or @here
+//     if payload.message.contains("@everyone") || payload.message.contains("@here") {
+//         error!("Blocked message containing @everyone or @here");
+//         return "Blocked message: contains @everyone or @here";
+//     }
+    
+//     let client = Client::new();
+//     let discord_payload = DiscordPayload {
+//         content: payload.message.clone(),
+//     };
+
+//     // Send the message to Discord
+//     match client.post(webhook_url)
+//         .json(&discord_payload)
+//         .send()
+//         .await
+//     {
+//         Ok(response) if response.status().is_success() => {
+//             info!("Message successfully sent to Discord");
+//             "Message sent to Discord"
+//         }
+//         Ok(response) => {
+//             error!("Discord API error: {}", response.status());
+//             "Error sending message to Discord"
+//         }
+//         Err(e) => {
+//             error!("Request error: {}", e);
+//             "Error sending request to Discord"
+//         }
+//     }
+// }
+
+// #[tokio::main]
+// async fn main() {
+//     // Initialize logging
+//     tracing_subscriber::fmt().init();
+    
+//     info!("Starting server...");
+
+//     let app = Router::new()
+//         .route("/test", get(test_handler))
+//         .route("/send", post(send_to_discord));
+    
+//     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+//     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().expect("Invalid address");
+
+//     info!("Server running at http://{}", addr);
+
+//     let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind port");
+//     axum::serve(listener, app.into_make_service())
+//         .await
+//         .expect("Server crashed");
+// }
 use axum::{routing::{get, post}, Json, Router};
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -90,11 +174,34 @@ use tracing_subscriber;
 #[derive(Deserialize)]
 struct Payload {
     message: String,
+    embeds: Option<Vec<Embed>>,  // Added embeds field
+}
+
+#[derive(Serialize)]
+struct EmbedField {
+    name: String,
+    value: String,
+    inline: bool,
+}
+
+#[derive(Serialize)]
+struct Embed {
+    title: String,
+    description: String,
+    fields: Vec<EmbedField>,
+    color: u32,
+    thumbnail: Option<Thumbnail>,
+}
+
+#[derive(Serialize)]
+struct Thumbnail {
+    url: String,
 }
 
 #[derive(Serialize)]
 struct DiscordPayload {
     content: String,
+    embeds: Option<Vec<Embed>>,
 }
 
 // Route for /test
@@ -102,7 +209,7 @@ async fn test_handler() -> &'static str {
     "Hello, World!"
 }
 
-// Handles sending messages to Discord
+// Handles sending messages to Discord with the embed
 async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     let webhook_url = "https://discord.com/api/webhooks/1332801389461635132/bSSYvH0qlWxghUjXiwLlZ_lMmYwPgtoUvz6--uaMNvTmty2DcChWRcEaG0FwvxduxB2t";
 
@@ -118,6 +225,7 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
     let client = Client::new();
     let discord_payload = DiscordPayload {
         content: payload.message.clone(),
+        embeds: payload.embeds,  // Include the embeds from the payload
     };
 
     // Send the message to Discord
