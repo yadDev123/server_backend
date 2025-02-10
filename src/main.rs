@@ -233,12 +233,12 @@ async fn send_to_discord(Json(payload): Json<Payload>) -> &'static str {
         description: payload.message.clone(),
         fields: vec![
             EmbedField {
-                name: "User ID",
+                name: "User ID".to_string(),
                 value: payload.user_id.clone(),
                 inline: true,
             },
             EmbedField {
-                name: "Timestamp",
+                name: "Timestamp".to_string(),
                 value: payload.timestamp.clone(),
                 inline: true,
             },
